@@ -1,0 +1,10 @@
+{
+  "appId": "com.example.app",
+  "appName": "RuletApp",
+  "webDir": "www",
+
+  "icon": {
+    "source": "./assets/icon.png"
+  },
+  "platforms": ["android"]
+}

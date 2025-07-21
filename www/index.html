@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RuletApp</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #282c34; /* Fondo oscuro */
+      color: #e0e0e0; /* Texto claro */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      min-height: 100vh; /* Asegura que el body ocupe al menos toda la altura de la ventana */
+      box-sizing: border-box; /* Incluye padding y border en el tamaño total */
+    }
+
+    h1 {
+      color: #61dafb; /* Un color de acento vibrante para el título */
+      font-size: 8vw; /* Tamaño de fuente responsivo */
+      margin-bottom: 20px;
+    }
+
+    /* Para pantallas más grandes, limita el tamaño del título */
+    @media (min-width: 600px) {
+      h1 {
+        font-size: 48px; /* Tamaño máximo para el título */
+      }
+    }
+
+    #optionsInput {
+      width: 90%; /* Ocupa el 90% del ancho disponible */
+      max-width: 400px; /* Limita el ancho máximo para pantallas grandes */
+      padding: 10px;
+      margin: 10px 0;
+      background-color: #3a3f47; /* Fondo del input oscuro */
+      color: #e0e0e0; /* Texto del input claro */
+      border: 1px solid #555;
+      border-radius: 5px;
+      font-size: 4vw; /* Tamaño de fuente responsivo para el textarea */
+    }
+
+    @media (min-width: 600px) {
+      #optionsInput {
+        font-size: 16px; /* Tamaño de fuente máximo para el textarea */
+      }
+    }
+
+    canvas {
+      margin-top: 20px;
+      border: 5px solid #444; /* Borde más oscuro para el canvas */
+      border-radius: 50%;
+      background: #333; /* Fondo del canvas más oscuro */
+      cursor: pointer; /* Cambia el cursor para indicar que es clickeable */
+      transition: transform 0.1s ease-out; /* Pequeña transición para el efecto de clic */
+      
+      /* Propiedades para hacerlo responsivo */
+      width: 80vw; /* Ocupa el 80% del ancho del viewport */
+      height: 80vw; /* Se mantiene cuadrado con el mismo ancho */
+      max-width: 400px; /* Limita el tamaño máximo del canvas en pantallas grandes */
+      max-height: 400px; /* Limita el tamaño máximo del canvas en pantallas grandes */
+
+      /* ESTOS SON LOS CAMBIOS PARA ELIMINAR EL RESALTADO TÁCTIL */
+      outline: none; /* Elimina el borde de enfoque (ya lo habíamos puesto) */
+      -webkit-tap-highlight-color: transparent; /* ¡Aquí está el truco para el resaltado táctil! */
+      touch-action: manipulation; /* Optimiza la interacción táctil (ya lo habíamos puesto) */
+    }
+
+    canvas:active {
+        transform: scale(0.98); /* Efecto visual de "presionado" al hacer clic */
+    }
+
+    #result {
+      margin-top: 20px;
+      font-size: 6vw; /* Tamaño de fuente responsivo */
+      font-weight: bold;
+      color: #e0e0e0; /* Color de texto claro para el resultado */
+      text-align: center; /* Centra el texto del resultado */
+    }
+
+    @media (min-width: 600px) {
+      #result {
+        font-size: 24px; /* Tamaño de fuente máximo para el resultado */
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>RuletApp<span style="font-size: 0.4em; color: #535a64; margin-left: 3px;">v1.0</span></h1>
+
+  <textarea id="optionsInput" rows="5" oninput="generateWheel()" placeholder="Escribe cada opción en una línea diferente..."></textarea><br>
+
+  <canvas id="wheelCanvas" width="400" height="400" onclick="spinWheel()"></canvas>
+
+  <div id="result"></div>
+
+  <script>
+    const canvas = document.getElementById("wheelCanvas");
+    const ctx = canvas.getContext("2d");
+    let radius = canvas.width / 2;
+    let options = [];
+    let angle = 0;
+    let spinAngle = 0;
+    let spinning = false;
+
+    const colors = [
+      "#F7374F", // Rojo vibrante
+      "#4ECDC4", // Turquesa
+      "#FDC747", // Amarillo soleado
+      "#00A57C", // Verde esmeralda
+      "#7A8CD0", // Azul púrpura
+      "#FF9D23"  // Naranja quemado
+    ];
+
+    function resizeCanvas() {
+        const size = Math.min(window.innerWidth * 0.8, 400);
+        canvas.width = size;
+        canvas.height = size;
+        radius = canvas.width / 2;
+        drawWheel();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    function generateWheel() {
+      const input = document.getElementById("optionsInput").value;
+      options = input.split("\n").map(opt => opt.trim()).filter(opt => opt);
+      if (options.length < 1) {
+          document.getElementById("result").innerText = "Por favor, ingresa al menos una opción.";
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // Si no hay opciones, mostrar un mensaje guía en la ruleta.
+          ctx.fillStyle = "#e0e0e0";
+          ctx.font = `${Math.max(16, radius * 0.1)}px Arial`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("¡Añade opciones!", radius, radius);
+          return;
+      }
+      document.getElementById("result").innerText = "";
+      drawWheel();
+    }
+
+    function drawWheel() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Si no hay opciones, se dibuja un mensaje y se detiene la función.
+      if (options.length === 0) {
+        ctx.fillStyle = "#e0e0e0";
+        ctx.font = `${Math.max(16, radius * 0.1)}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("¡Añade opciones!", radius, radius);
+        return;
+      }
+
+      // Aplica el sombreado si la ruleta no está girando
+      if (!spinning) {
+        ctx.globalAlpha = 0.6; // Valor de opacidad para el sombreado
+      } else {
+        ctx.globalAlpha = 1; // Opacidad completa cuando está girando
+      }
+
+      const anglePerOption = (2 * Math.PI) / options.length;
+      ctx.save();
+      ctx.translate(radius, radius);
+      ctx.rotate(angle);
+
+      options.forEach((option, i) => {
+        const startAngle = i * anglePerOption;
+        const endAngle = startAngle + anglePerOption;
+
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.save();
+        ctx.rotate(startAngle + anglePerOption / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#282c34";
+        const fontSize = Math.max(12, Math.min(20, radius * 0.08));
+        ctx.font = `${fontSize}px Arial`;
+        const textOffset = Math.max(5, radius * 0.025);
+        ctx.fillText(option, radius - textOffset, 0);
+        ctx.restore();
+      });
+
+      ctx.restore();
+
+      // Restaura la opacidad para dibujar la flecha y el texto "Click para girar" con visibilidad normal
+      ctx.globalAlpha = 1; 
+
+      // Aplica transparencia al dibujar la flecha
+      ctx.globalAlpha = 0.8;
+      // Flecha arriba (estática)
+      ctx.fillStyle = "#dc3545";
+      ctx.beginPath();
+      const arrowWidth = radius * 0.05;
+      const arrowHeight = radius * 0.1;
+      // El mismo offset que antes, ya que el pedido original era mantenerlo más arriba
+      const arrowOffset = radius * 0.025; 
+
+      ctx.moveTo(radius - arrowWidth, arrowOffset);
+      ctx.lineTo(radius + arrowWidth, arrowOffset);
+      ctx.lineTo(radius, arrowOffset + arrowHeight);
+      ctx.closePath();
+      ctx.fill();
+      // Restaura la opacidad después de dibujar la flecha
+      ctx.globalAlpha = 1;
+
+      // Dibuja el texto "Click para girar" solo si no está girando
+      if (!spinning) {
+        ctx.fillStyle = "#e0e0e0";
+        ctx.font = `${Math.max(16, radius * 0.1)}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Click para girar", radius, radius);
+      }
+    }
+
+    function getSelectedOption() {
+      if (options.length === 0) return "No hay opciones disponibles";
+      const anglePerOption = (2 * Math.PI) / options.length;
+
+      let normalizedAngle = (angle + Math.PI / 2) % (2 * Math.PI);
+      if (normalizedAngle < 0) {
+          normalizedAngle += 2 * Math.PI;
+      }
+
+      let index = Math.floor((2 * Math.PI - normalizedAngle) / anglePerOption) % options.length;
+
+      if (index < 0) {
+        index += options.length;
+      }
+
+      return options[index];
+    }
+
+    function spinWheel() {
+      if (spinning || options.length < 2) {
+          if (options.length < 2) {
+              document.getElementById("result").innerText = "Por favor, añade al menos dos opciones para girar.";
+          }
+          return;
+      }
+
+      spinning = true;
+      let duration = 3000 + Math.random() * 2000;
+      let start = null;
+      spinAngle = (Math.random() * 5 + 5) * (2 * Math.PI) + Math.random() * (2 * Math.PI);
+
+      function animate(timestamp) {
+        if (!start) start = timestamp;
+        let progress = timestamp - start;
+        let eased = easeOutCubic(progress / duration);
+
+        angle = spinAngle * eased;
+
+        drawWheel();
+
+        if (progress < duration) {
+          requestAnimationFrame(animate);
+        } else {
+          spinning = false;
+          angle = spinAngle;
+          drawWheel();
+          const selected = getSelectedOption();
+          document.getElementById("result").innerText = `Resultado: ${selected}`;
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    resizeCanvas();
+    generateWheel();
+  </script>
+</body>
+</html>
